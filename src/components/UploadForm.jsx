@@ -1,33 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UploadCloud, Image as ImageIcon, Loader2 } from "lucide-react";
 import { uploadImage } from "../api/galleryApi";
 
 export default function UploadForm({ onUploaded }) {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
   const [category, setCategory] = useState("Acting");
   const [loading, setLoading] = useState(false);
 
+  // ✅ Generate previews safely
+  useEffect(() => {
+    if (!files.length) {
+      setPreviews([]);
+      return;
+    }
+
+    const urls = files.map((file) => URL.createObjectURL(file));
+    setPreviews(urls);
+
+    // cleanup (VERY IMPORTANT)
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [files]);
+
   const onChange = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
+    setFiles(selectedFiles);
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!file) return;
+    if (!files.length) return;
 
     const fd = new FormData();
-    fd.append("image", file);
+
+    files.forEach((file) => {
+      fd.append("images", file); // MUST match backend
+    });
+
     fd.append("category", category);
 
     try {
       setLoading(true);
       await uploadImage(fd);
-      setFile(null);
-      setPreview(null);
+
+      setFiles([]);
+      setPreviews([]);
+
+      // reset input (important)
+      e.target.reset();
+
       onUploaded?.();
     } finally {
       setLoading(false);
@@ -41,37 +63,38 @@ export default function UploadForm({ onUploaded }) {
     >
       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
         <UploadCloud size={20} />
-        Upload Image
+        Upload Images
       </h3>
 
-      {/* Responsive Layout */}
       <div className="grid md:grid-cols-2 gap-6">
-        
-        {/* File Upload */}
+
+        {/* Upload */}
         <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer hover:bg-gray-50 transition">
           <UploadCloud className="mb-2 text-gray-500" />
           <span className="text-sm text-gray-600 text-center">
-            Click to upload or drag & drop
+            Click to upload multiple images
           </span>
           <input
             type="file"
             accept="image/*"
+            multiple
             onChange={onChange}
             className="hidden"
-            required
           />
         </label>
 
-        {/* Preview */}
-        <div className="flex items-center justify-center">
-          {preview ? (
-            <img
-              src={preview}
-              alt="preview"
-              className="w-full max-h-48 object-cover rounded-lg border"
-            />
+        {/* Preview Grid */}
+        <div className="flex flex-wrap gap-2">
+          {previews.length ? (
+            previews.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                className="w-20 h-20 object-cover rounded border"
+              />
+            ))
           ) : (
-            <div className="flex flex-col items-center text-gray-400">
+            <div className="flex flex-col items-center text-gray-400 justify-center w-full">
               <ImageIcon size={40} />
               <span className="text-sm mt-2">Preview</span>
             </div>
